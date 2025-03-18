@@ -1,0 +1,131 @@
+{% extends "base.html" %} {% block title %}Model Performance Statistics{%
+endblock %} {% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h1 class="display-5">AI Model Performance</h1>
+    <p class="lead">
+      Compare how different AI models perform in predicting soccer match
+      outcomes.
+    </p>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Model Comparison</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-bordered table-striped text-center">
+            <thead class="table-light">
+              <tr>
+                <th>Model</th>
+                <th>Correct Outcome %</th>
+                <th>Correct Score %</th>
+                <th>Avg. Goal Error</th>
+                <th>Matches Predicted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for model_name, model_data in stats.items() %}
+              <tr>
+                <td class="text-start">
+                  {{ model_name|replace('_', ' ')|title }}
+                </td>
+                <td>
+                  <div class="progress" style="height: 25px">
+                    <div
+                      class="progress-bar bg-success"
+                      role="progressbar"
+                      style="width: {{ model_data.correct_outcome_percentage }}%;"
+                      aria-valuenow="{{ model_data.correct_outcome_percentage }}"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    >
+                      {{ model_data.correct_outcome_percentage }}%
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="progress" style="height: 25px">
+                    <div
+                      class="progress-bar bg-info"
+                      role="progressbar"
+                      style="width: {{ model_data.correct_score_percentage }}%;"
+                      aria-valuenow="{{ model_data.correct_score_percentage }}"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    >
+                      {{ model_data.correct_score_percentage }}%
+                    </div>
+                  </div>
+                </td>
+                <td>{{ model_data.avg_goal_error }}</td>
+                <td>{{ model_data.matches_predicted }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer">
+        <small class="text-muted">
+          <ul class="mb-0">
+            <li>
+              <strong>Correct Outcome %:</strong> Percentage of matches where
+              the predicted outcome (win/draw/loss) was correct
+            </li>
+            <li>
+              <strong>Correct Score %:</strong> Percentage of matches where the
+              exact score was correctly predicted
+            </li>
+            <li>
+              <strong>Avg. Goal Error:</strong> Average error between predicted
+              and actual goals scored per team
+            </li>
+          </ul>
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Model Performance Over Time</h5>
+      </div>
+      <div class="card-body">
+        <p class="text-center">
+          This chart will show the accuracy of each model over time.
+        </p>
+        <div
+          id="chart-placeholder"
+          style="
+            height: 300px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          "
+        >
+          <p class="text-muted mb-0">
+            Performance chart will be displayed here once we have sufficient
+            historical data
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // This will be populated with real data once we have implemented the model stats tracking
+  // For now, it's just a placeholder
+</script>
+{% endblock %}

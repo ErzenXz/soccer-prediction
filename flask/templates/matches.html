@@ -1,0 +1,204 @@
+{% extends "base.html" %} {% block title %}Soccer Predictions - {{
+formatted_date }}{% endblock %} {% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h1 class="display-5">Matches for {{ formatted_date }}</h1>
+  </div>
+</div>
+
+<div class="row mb-3">
+  <div class="col">
+    <div class="btn-group" role="group">
+      <a
+        href="{{ url_for('matches', date=prev_day) }}"
+        class="btn btn-outline-primary"
+        >&laquo; Previous Day</a
+      >
+      <a href="{{ url_for('matches') }}" class="btn btn-outline-primary"
+        >Today</a
+      >
+      <a
+        href="{{ url_for('matches', date=next_day) }}"
+        class="btn btn-outline-primary"
+        >Next Day &raquo;</a
+      >
+    </div>
+  </div>
+</div>
+
+{% if matches %} {% for match in matches %}
+<div class="card mb-4">
+  <div
+    class="card-header bg-light d-flex justify-content-between align-items-center"
+  >
+    <div class="d-flex align-items-center">
+      {% if match.league_logo %}
+      <img
+        src="{{ match.league_logo }}"
+        alt="{{ match.league }}"
+        class="league-logo me-2"
+        width="24"
+        height="24"
+      />
+      {% endif %}
+      <span>{{ match.league }}</span>
+      {% if match.country %}
+      <span class="badge bg-secondary ms-2">{{ match.country }}</span>
+      {% endif %}
+    </div>
+    <span class="match-time">{{ match.time }}</span>
+  </div>
+  <div class="card-body">
+    <div class="row align-items-center mb-3">
+      <div class="col-12 col-md-5 text-center text-md-end mb-3 mb-md-0">
+        <div
+          class="d-flex align-items-center justify-content-center justify-content-md-end"
+        >
+          <h5 class="mb-0 me-3 team-name">{{ match.home_team }}</h5>
+          {% if match.home_logo %}
+          <img
+            src="{{ match.home_logo }}"
+            alt="{{ match.home_team }}"
+            class="team-logo"
+            width="40"
+            height="40"
+          />
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-12 col-md-2 text-center my-2 my-md-0">
+        <div class="vs-badge">VS</div>
+      </div>
+      <div class="col-12 col-md-5 text-center text-md-start mb-3 mb-md-0">
+        <div
+          class="d-flex align-items-center justify-content-center justify-content-md-start"
+        >
+          {% if match.away_logo %}
+          <img
+            src="{{ match.away_logo }}"
+            alt="{{ match.away_team }}"
+            class="team-logo me-3"
+            width="40"
+            height="40"
+          />
+          {% endif %}
+          <h5 class="mb-0 team-name">{{ match.away_team }}</h5>
+        </div>
+      </div>
+    </div>
+
+    <hr />
+
+    <div class="row">
+      <div class="col-12">
+        <h5 class="text-center mb-3">Predictions</h5>
+        <div class="table-responsive">
+          <table class="table table-bordered text-center prediction-table">
+            <thead class="table-light">
+              <tr>
+                <th>Model</th>
+                <th>Score Prediction</th>
+                <th>Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for model_name, prediction in match.predictions.items() %}
+              <tr>
+                <td class="model-name">
+                  {{ model_name|replace('_', ' ')|title }}
+                </td>
+                <td class="score-prediction">
+                  <span class="score-box home-score"
+                    >{{ prediction.home_score }}</span
+                  >
+                  <span class="score-separator">-</span>
+                  <span class="score-box away-score"
+                    >{{ prediction.away_score }}</span
+                  >
+                </td>
+                <td>
+                  {% if prediction.outcome == "HOME_WIN" %}
+                  <span class="badge bg-primary"
+                    >{{ match.home_team }} Win</span
+                  >
+                  {% elif prediction.outcome == "AWAY_WIN" %}
+                  <span class="badge bg-danger">{{ match.away_team }} Win</span>
+                  {% else %}
+                  <span class="badge bg-secondary">Draw</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %} {% else %}
+<div class="alert alert-info">No matches found for this date.</div>
+{% endif %} {% endblock %} {% block extra_css %}
+<style>
+  .league-logo {
+    object-fit: contain;
+  }
+
+  .team-logo {
+    object-fit: contain;
+  }
+
+  .team-name {
+    font-weight: 600;
+  }
+
+  .match-time {
+    font-weight: bold;
+    color: #666;
+  }
+
+  .vs-badge {
+    background-color: #f8f9fa;
+    color: #495057;
+    font-weight: bold;
+    padding: 5px 10px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .prediction-table {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .model-name {
+    font-weight: 500;
+  }
+
+  .score-prediction {
+    font-weight: bold;
+  }
+
+  .score-box {
+    display: inline-block;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    background-color: #e9ecef;
+    border-radius: 4px;
+  }
+
+  .score-separator {
+    margin: 0 5px;
+  }
+
+  .home-score {
+    background-color: #cfe2ff;
+  }
+
+  .away-score {
+    background-color: #f8d7da;
+  }
+</style>
+{% endblock %}

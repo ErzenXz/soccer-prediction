@@ -1,0 +1,42 @@
+/* Custom styles for Soccer Prediction App */
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+/* Match card styling */
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+}
+
+/* Team names styling */
+.team-name {
+    font-weight: 600;
+}
+
+/* Progress bar customization */
+.progress {
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+/* Badge customization */
+.badge {
+    font-size: 0.85rem;
+    padding: 0.4em 0.6em;
+} 

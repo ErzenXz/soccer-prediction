@@ -1,0 +1,191 @@
+{% extends "base.html" %} {% block title %}Match Results - {{ formatted_date
+}}{% endblock %} {% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h1 class="display-5">Results for {{ formatted_date }}</h1>
+  </div>
+</div>
+
+<div class="row mb-3">
+  <div class="col">
+    <div class="btn-group" role="group">
+      <a
+        href="{{ url_for('results', date=prev_day) }}"
+        class="btn btn-outline-primary"
+        >&laquo; Previous Day</a
+      >
+      <a href="{{ url_for('results') }}" class="btn btn-outline-primary"
+        >Yesterday</a
+      >
+      <a
+        href="{{ url_for('results', date=next_day) }}"
+        class="btn btn-outline-primary"
+        >Next Day &raquo;</a
+      >
+    </div>
+  </div>
+</div>
+
+{% if results %} {% for result in results %}
+<div class="card mb-4">
+  <div
+    class="card-header bg-light d-flex justify-content-between align-items-center"
+  >
+    <div class="d-flex align-items-center">
+      {% if result.league_logo %}
+      <img
+        src="{{ result.league_logo }}"
+        alt="{{ result.league }}"
+        class="league-logo me-2"
+        width="24"
+        height="24"
+      />
+      {% endif %}
+      <span>{{ result.league }}</span>
+      {% if result.country %}
+      <span class="badge bg-secondary ms-2">{{ result.country }}</span>
+      {% endif %}
+    </div>
+    <span class="match-status">Final Result</span>
+  </div>
+  <div class="card-body">
+    <div class="row align-items-center mb-3">
+      <div class="col-12 col-md-4 text-center text-md-end mb-3 mb-md-0">
+        <div
+          class="d-flex align-items-center justify-content-center justify-content-md-end"
+        >
+          <h5
+            class="mb-0 me-3 team-name {% if result.home_score > result.away_score %}winner{% endif %}"
+          >
+            {{ result.home_team }}
+          </h5>
+          {% if result.home_logo %}
+          <img
+            src="{{ result.home_logo }}"
+            alt="{{ result.home_team }}"
+            class="team-logo"
+            width="40"
+            height="40"
+          />
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-12 col-md-4 text-center my-2 my-md-0">
+        <div class="score-display">
+          <span
+            class="home-score {% if result.home_score > result.away_score %}winner-score{% endif %}"
+          >
+            {{ result.home_score }}
+          </span>
+          <span class="score-separator">-</span>
+          <span
+            class="away-score {% if result.home_score < result.away_score %}winner-score{% endif %}"
+          >
+            {{ result.away_score }}
+          </span>
+        </div>
+      </div>
+      <div class="col-12 col-md-4 text-center text-md-start mb-3 mb-md-0">
+        <div
+          class="d-flex align-items-center justify-content-center justify-content-md-start"
+        >
+          {% if result.away_logo %}
+          <img
+            src="{{ result.away_logo }}"
+            alt="{{ result.away_team }}"
+            class="team-logo me-3"
+            width="40"
+            height="40"
+          />
+          {% endif %}
+          <h5
+            class="mb-0 team-name {% if result.home_score < result.away_score %}winner{% endif %}"
+          >
+            {{ result.away_team }}
+          </h5>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-4">
+      <div class="col text-center">
+        <span
+          class="result-badge {% if result.home_score > result.away_score %}home-win{% elif result.home_score < result.away_score %}away-win{% else %}draw{% endif %}"
+        >
+          {% if result.home_score > result.away_score %} Home Win {% elif
+          result.home_score < result.away_score %} Away Win {% else %} Draw {%
+          endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %} {% else %}
+<div class="alert alert-info">
+  No match results found for this date. This could be because matches haven't
+  finished yet or there were no matches scheduled.
+</div>
+{% endif %} {% endblock %} {% block extra_css %}
+<style>
+  .league-logo,
+  .team-logo {
+    object-fit: contain;
+  }
+
+  .team-name {
+    font-weight: 600;
+  }
+
+  .winner {
+    font-weight: 700;
+    color: #28a745;
+  }
+
+  .match-status {
+    font-weight: bold;
+    color: #6c757d;
+  }
+
+  .score-display {
+    font-size: 1.8rem;
+    font-weight: bold;
+    background-color: #f8f9fa;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .score-separator {
+    margin: 0 8px;
+    color: #6c757d;
+  }
+
+  .winner-score {
+    color: #28a745;
+  }
+
+  .result-badge {
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    display: inline-block;
+  }
+
+  .home-win {
+    background-color: #cfe2ff;
+    color: #0d6efd;
+  }
+
+  .away-win {
+    background-color: #f8d7da;
+    color: #dc3545;
+  }
+
+  .draw {
+    background-color: #e2e3e5;
+    color: #6c757d;
+  }
+</style>
+{% endblock %}
