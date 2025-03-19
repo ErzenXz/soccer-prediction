@@ -7,6 +7,8 @@ import requests
 import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import pandas as pd
+import joblib
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -15,6 +17,48 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+# Load the prediction models
+try:
+    MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models/small/first')
+    logger.info(f"Looking for models in: {MODEL_PATH}")
+    
+    # List all files in the model directory to debug
+    if os.path.exists(MODEL_PATH):
+        model_files = os.listdir(MODEL_PATH)
+        logger.info(f"Found files in model directory: {model_files}")
+    else:
+        logger.error(f"Model directory {MODEL_PATH} does not exist")
+    
+    # Check if the model files exist
+    clf_file = os.path.join(MODEL_PATH, "train_small_classifier.pkl")
+    home_reg_file = os.path.join(MODEL_PATH, "train_small_regressor_home.pkl")
+    away_reg_file = os.path.join(MODEL_PATH, "train_small_regressor_away.pkl")
+    
+    if (not os.path.exists(clf_file) or 
+        not os.path.exists(home_reg_file) or 
+        not os.path.exists(away_reg_file)):
+        logger.warning("Model files don't exist. Models need to be trained first.")
+        clf_pipeline = None
+        reg_pipeline_home = None
+        reg_pipeline_away = None
+    else:
+        # Load the models
+        logger.info(f"Loading classifier from: {clf_file}")
+        clf_pipeline = joblib.load(clf_file)
+        
+        logger.info(f"Loading home regressor from: {home_reg_file}")
+        reg_pipeline_home = joblib.load(home_reg_file)
+        
+        logger.info(f"Loading away regressor from: {away_reg_file}")
+        reg_pipeline_away = joblib.load(away_reg_file)
+        
+        logger.info("Successfully loaded prediction models")
+except Exception as e:
+    logger.error(f"Error loading prediction models: {e}")
+    clf_pipeline = None
+    reg_pipeline_home = None
+    reg_pipeline_away = None
 
 app = Flask(__name__)
 
@@ -184,33 +228,42 @@ def store_matches_in_db(matches):
                 
                 if existing_match:
                     logger.info(f"Match {api_match_id} already exists in database")
-                    continue
+                    # Check if predictions exist
+                    cur.execute("SELECT COUNT(*) FROM predictions WHERE match_id = %s", (existing_match['id'],))
+                    prediction_count = cur.fetchone()['count']
+                    
+                    if prediction_count > 0:
+                        logger.info(f"Predictions already exist for match {api_match_id}, skipping")
+                        continue
+                    
+                    db_match_id = existing_match['id']
+                else:
+                    # Prepare match data
+                    match_data = (
+                        api_match_id,
+                        match['date'],
+                        match['time'],
+                        match['home_team'],
+                        match['away_team'],
+                        match['league'],
+                        match.get('country', ''),
+                        match.get('league_logo', ''),
+                        match.get('home_logo', ''),
+                        match.get('away_logo', '')
+                    )
+                    
+                    # Insert match
+                    logger.info(f"Inserting match {api_match_id} into database")
+                    cur.execute("""
+                        INSERT INTO matches 
+                        (match_id, date, time, home_team, away_team, league, country, league_logo, home_logo, away_logo) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+                    """, match_data)
+                    
+                    db_match_id = cur.fetchone()['id']
                 
-                # Prepare match data
-                match_data = (
-                    api_match_id,
-                    match['date'],
-                    match['time'],
-                    match['home_team'],
-                    match['away_team'],
-                    match['league'],
-                    match.get('country', ''),
-                    match.get('league_logo', ''),
-                    match.get('home_logo', ''),
-                    match.get('away_logo', '')
-                )
-                
-                # Insert match
-                logger.info(f"Inserting match {api_match_id} into database")
-                cur.execute("""
-                    INSERT INTO matches 
-                    (match_id, date, time, home_team, away_team, league, country, league_logo, home_logo, away_logo) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-                """, match_data)
-                
-                db_match_id = cur.fetchone()['id']
                 stored_count += 1
-                logger.info(f"Match inserted with database ID: {db_match_id}")
+                logger.info(f"Processing predictions for match {api_match_id}")
                 
                 # Store predictions
                 for model_name, prediction in match['predictions'].items():
@@ -327,6 +380,103 @@ def store_results_in_db(results):
         logger.error(f"Error storing results in database: {e}")
         return False
 
+def generate_predictions(home_team, away_team, date_str):
+    """
+    Generate predictions using the small model for all three model types.
+    """
+    logger.info(f"Generating predictions for {home_team} vs {away_team} on {date_str}")
+    
+    if not all([clf_pipeline, reg_pipeline_home, reg_pipeline_away]):
+        logger.warning("Models not loaded, using mock predictions")
+        mock_predictions = generate_mock_predictions(home_team, away_team)
+        logger.info(f"Generated mock predictions: {mock_predictions}")
+        return mock_predictions
+    
+    try:
+        logger.info("Creating test data for prediction")
+        # Create test data
+        test_data = {
+            "date": [f"{date_str}T00:00:00.000Z"],
+            "full_time": ["F"],
+            "competition": ["unknown"],  # Default value since we don't have this info
+            "home": [home_team],
+            "away": [away_team],
+            "home_country": ["unknown"],  # Default value
+            "away_country": ["unknown"],  # Default value
+            "level": ["club"]
+        }
+        
+        # Convert to DataFrame
+        test_df = pd.DataFrame(test_data)
+        
+        # Process date
+        test_df["date"] = pd.to_datetime(test_df["date"])
+        test_df["year"] = test_df["date"].dt.year
+        test_df["month"] = test_df["date"].dt.month
+        test_df["day_of_week"] = test_df["date"].dt.dayofweek
+        
+        # Select features
+        features = [
+            "year", "month", "day_of_week",
+            "full_time", "competition",
+            "home", "away",
+            "home_country", "away_country",
+            "level"
+        ]
+        X_test = test_df[features]
+        
+        logger.info(f"Feature data prepared: {X_test.to_dict(orient='records')}")
+        
+        # Make predictions
+        logger.info("Making classifier prediction")
+        result_pred = clf_pipeline.predict(X_test)[0]
+        result_probs = clf_pipeline.predict_proba(X_test)[0]
+        logger.info(f"Classification result: {result_pred}, probabilities: {result_probs}")
+        
+        # Get raw score predictions
+        logger.info("Making regressor predictions")
+        raw_home_goals = reg_pipeline_home.predict(X_test)[0]
+        raw_away_goals = reg_pipeline_away.predict(X_test)[0]
+        logger.info(f"Raw goal predictions - Home: {raw_home_goals}, Away: {raw_away_goals}")
+        
+        # Round the predicted goals
+        pred_home_goals = round(raw_home_goals)
+        pred_away_goals = round(raw_away_goals)
+        logger.info(f"Rounded goal predictions - Home: {pred_home_goals}, Away: {pred_away_goals}")
+        
+        # Determine outcome
+        outcome = "HOME_WIN" if pred_home_goals > pred_away_goals else \
+                 ("AWAY_WIN" if pred_home_goals < pred_away_goals else "DRAW")
+        logger.info(f"Determined outcome: {outcome}")
+        
+        # Use the same predictions for all three models
+        predictions = {
+            "small_model": {
+                "home_score": pred_home_goals,
+                "away_score": pred_away_goals,
+                "outcome": outcome
+            },
+            "medium_model": {
+                "home_score": pred_home_goals,
+                "away_score": pred_away_goals,
+                "outcome": outcome
+            },
+            "large_model": {
+                "home_score": pred_home_goals,
+                "away_score": pred_away_goals,
+                "outcome": outcome
+            }
+        }
+        
+        logger.info(f"Generated predictions: {predictions}")
+        return predictions
+    except Exception as e:
+        logger.error(f"Error generating predictions: {e}", exc_info=True)
+        logger.info("Falling back to mock predictions")
+        mock_predictions = generate_mock_predictions(home_team, away_team)
+        logger.info(f"Generated mock predictions: {mock_predictions}")
+        return mock_predictions
+
 def create_match_object(fixture, date_str):
     """
     Create a match object from a fixture object
@@ -349,7 +499,7 @@ def create_match_object(fixture, date_str):
         "league_logo": fixture['league'].get('logo', ''),
         "home_logo": fixture['teams']['home'].get('logo', ''),
         "away_logo": fixture['teams']['away'].get('logo', ''),
-        "predictions": generate_mock_predictions(fixture['teams']['home']['name'], fixture['teams']['away']['name'])
+        "predictions": generate_predictions(fixture['teams']['home']['name'], fixture['teams']['away']['name'], date_str)
     }
     return match
 
@@ -444,9 +594,15 @@ def get_matches_for_date(date_str):
     """
     Get matches for a specific date. First check database, then fall back to API.
     """
+    logger.info(f"Getting matches for date: {date_str}")
+    
     # Check if matches exist in the database first
     db_matches = check_db_for_matches(date_str)
     if db_matches:
+        logger.info(f"Found {len(db_matches)} matches in database")
+        # Log a sample match to verify prediction data
+        if db_matches:
+            logger.info(f"Sample match from DB: {db_matches[0]}")
         return db_matches
     
     logger.info(f"No matches found in database for {date_str}, fetching from API...")
@@ -455,7 +611,9 @@ def get_matches_for_date(date_str):
     # Check if API key is set
     if not API_KEY:
         logger.warning("API_FOOTBALL_KEY not set. Using mock data.")
-        return get_mock_matches(date_str)
+        mock_data = get_mock_matches(date_str)
+        logger.info(f"Generated mock data: {mock_data[0] if mock_data else 'No mock data'}")
+        return mock_data
     
     # Set up API parameters
     params = {
@@ -468,11 +626,14 @@ def get_matches_for_date(date_str):
     # If API request failed, fall back to mock data
     if not response_data or 'response' not in response_data:
         logger.warning("API request failed or returned invalid data. Using mock data.")
-        return get_mock_matches(date_str)
+        mock_data = get_mock_matches(date_str)
+        logger.info(f"Generated mock data: {mock_data[0] if mock_data else 'No mock data'}")
+        return mock_data
     
     # Parse the response
     matches = []
     fixtures = response_data['response']
+    logger.info(f"API returned {len(fixtures)} fixtures")
     
     # First add top league matches
     for fixture in fixtures:
@@ -501,10 +662,20 @@ def get_matches_for_date(date_str):
     # If no matches found, use mock data
     if not matches:
         logger.warning(f"No matches found for {date_str}. Using mock data instead.")
-        return get_mock_matches(date_str)
+        mock_data = get_mock_matches(date_str)
+        logger.info(f"Generated mock data: {mock_data[0] if mock_data else 'No mock data'}")
+        return mock_data
+    
+    # Log a sample match before storing in database
+    if matches:
+        logger.info(f"Sample match from API before storage: {matches[0]}")
     
     # Store matches in database for future use
     store_matches_in_db(matches)
+    
+    # Log a sample match after potentially updating in database
+    if matches:
+        logger.info(f"Sample match after storage: {matches[0]}")
         
     return matches
 
